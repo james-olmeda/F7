@@ -66,7 +66,7 @@ public final class F1SignalRClient: TelemetryProviderProtocol {
         // Once parsed, push the data to TelemetryRepository / DelayCalibrationManager
         switch message {
         case .string(let text):
-            print("[F1SignalRClient] Received text payload from stream.")
+            print("[F1SignalRClient] Received text payload from stream: \(text.prefix(100))")
         case .data(let data):
             print("[F1SignalRClient] Received \(data.count) bytes of generic payload.")
         @unknown default:

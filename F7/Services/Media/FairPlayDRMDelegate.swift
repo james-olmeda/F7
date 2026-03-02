@@ -21,6 +21,7 @@ public final class FairPlayDRMDelegate: NSObject, AVAssetResourceLoaderDelegate 
     }
 
     /// Invoked automatically by `AVPlayer` when encountering an `#EXT-X-KEY` tag demanding FPS decryption.
+    @available(iOS, deprecated: 18.0, message: "Migrate to AVContentKeySession for non-deprecated key request API")
     public func resourceLoader(_ resourceLoader: AVAssetResourceLoader, shouldWaitForLoadingOfRequestedResource loadingRequest: AVAssetResourceLoadingRequest) -> Bool {
         
         guard let url = loadingRequest.request.url else { return false }
@@ -38,6 +39,8 @@ public final class FairPlayDRMDelegate: NSObject, AVAssetResourceLoaderDelegate 
                 }
                 
                 // 3. Ask AVFoundation to generate the Server Playback Context (SPC).
+                // TODO: Migrate from AVAssetResourceLoaderDelegate to AVContentKeySession + AVContentKeySessionDelegate
+                // to use the non-deprecated makeStreamingContentKeyRequestData(forApp:contentIdentifier:options:) on AVContentKeyRequest.
                 let spcData = try loadingRequest.streamingContentKeyRequestData(forApp: certificateData, contentIdentifier: contentIdData, options: nil)
                 
                 // 4. Send the SPC payload to the F1 Key Server, appending our entitlement JWT, to get the CKC.

@@ -39,7 +39,7 @@ public final class CoreMLExecutor {
         
         // We convert the dictionary to MLDictionaryFeatureProvider
         let nsFeatures = features.mapValues { NSNumber(value: $0) }
-        let provider = try MLDictionaryFeatureProvider(dictionary: nsFeatures)
+        let _ = try MLDictionaryFeatureProvider(dictionary: nsFeatures)
         
         print("[CoreMLExecutor] Executing prediction pass for \(modelName) on Neural Engine...")
         
