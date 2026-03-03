@@ -1,6 +1,5 @@
 import SwiftUI
 import AVKit
-import SafariServices
 
 /// Full-screen video player with FairPlay DRM, PIP support, and telemetry overlay.
 public struct VideoPlayerView: View {
@@ -47,10 +46,6 @@ public struct VideoPlayerView: View {
                     }
                 }
                 .ignoresSafeArea()
-
-            } else if let webURL = playerVM.webFallbackURL {
-                WebFallbackPlayerView(url: webURL)
-                    .ignoresSafeArea()
 
             } else if playerVM.isLoading {
                 // Show thumbnail preview while stream loads
@@ -128,16 +123,4 @@ public struct VideoPlayerView: View {
         default: return .clear
         }
     }
-}
-
-private struct WebFallbackPlayerView: UIViewControllerRepresentable {
-    let url: URL
-
-    func makeUIViewController(context: Context) -> SFSafariViewController {
-        let controller = SFSafariViewController(url: url)
-        controller.dismissButtonStyle = .close
-        return controller
-    }
-
-    func updateUIViewController(_ uiViewController: SFSafariViewController, context: Context) {}
 }

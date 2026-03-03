@@ -6,6 +6,7 @@ public struct RaceDashboardView: View {
     @Environment(TelemetryViewModel.self) private var telemetryVM
     @Environment(ContentBrowserViewModel.self) private var contentBrowserVM
     @Environment(VideoPlayerViewModel.self) private var videoPlayerVM
+    @Environment(F1NewsViewModel.self) private var newsVM
     @Environment(AuthViewModel.self) private var authVM
     
     public var body: some View {
@@ -35,6 +36,12 @@ public struct RaceDashboardView: View {
                 .tabItem {
                     Label("Predictions", systemImage: "brain.head.profile")
                 }
+
+            NewsTab()
+                .environment(newsVM)
+                .tabItem {
+                    Label("News", systemImage: "newspaper")
+                }
             
             SettingsTab()
                 .environment(authVM)
@@ -52,6 +59,15 @@ struct F1TVTab: View {
     var body: some View {
         NavigationStack {
             ContentBrowserView()
+        }
+    }
+}
+
+// MARK: - News Tab
+struct NewsTab: View {
+    var body: some View {
+        NavigationStack {
+            F1NewsView()
         }
     }
 }

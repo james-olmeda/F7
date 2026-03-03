@@ -14,8 +14,6 @@ final class F1TVImageLoader {
 
     private static let imageCDNBase = "https://ott-img.formula1.com/"
     private let cache = NSCache<NSString, UIImage>()
-    private var webView: WKWebView?
-    private var isWebViewReady = false
 
     private init() {
         cache.countLimit = 200
@@ -28,7 +26,7 @@ final class F1TVImageLoader {
         return URL(string: urlString)
     }
 
-    /// Main entry point — returns a cached UIImage or fetches it.
+    /// Main entry point — returns a cached UIImage or fetches it natively with synced cookies.
     func loadImage(pictureUrl: String, width: CGFloat, height: CGFloat) async -> UIImage? {
         let cacheKey = pictureUrl as NSString
         if let cached = cache.object(forKey: cacheKey) {
@@ -37,14 +35,14 @@ final class F1TVImageLoader {
 
         guard let url = imageURL(for: pictureUrl, width: width, height: height) else { return nil }
 
-        // Strategy 1: URLSession with cookies synced from WKWebView by F1TVAuthManager.
-        if let image = await downloadWithURLSession(url: url) {
-            cache.setObject(image, forKey: cacheKey)
-            return image
+        // Fetch WKWebsiteDataStore cookies and inject them into a native URLSession request.
+        let cookies = await withCheckedContinuation { continuation in
+            WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
+                continuation.resume(returning: cookies)
+            }
         }
-
-        // Strategy 2: WKWebView JS fetch with full cookie jar.
-        if let image = await downloadWithWebView(url: url) {
+        
+        if let image = await downloadWithURLSession(url: url, cookies: cookies) {
             cache.setObject(image, forKey: cacheKey)
             return image
         }
@@ -54,7 +52,7 @@ final class F1TVImageLoader {
 
     // MARK: - URLSession
 
-    private func downloadWithURLSession(url: URL) async -> UIImage? {
+    private func downloadWithURLSession(url: URL, cookies: [HTTPCookie]) async -> UIImage? {
         var request = URLRequest(url: url)
         request.setValue(
             "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
@@ -63,74 +61,23 @@ final class F1TVImageLoader {
         request.setValue("https://f1tv.formula1.com/", forHTTPHeaderField: "Referer")
         request.setValue("image/webp,image/*,*/*;q=0.8", forHTTPHeaderField: "Accept")
 
+        // Explictly inject the cookies into the HTTP Header of the request natively
+        if !cookies.isEmpty {
+            let cookieHeaders = HTTPCookie.requestHeaderFields(with: cookies)
+            if let cookieValue = cookieHeaders["Cookie"] {
+                request.setValue(cookieValue, forHTTPHeaderField: "Cookie")
+            }
+        }
+
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let httpResponse = response as? HTTPURLResponse,
               httpResponse.statusCode == 200,
               let image = UIImage(data: data) else {
+            let status = (try? await URLSession.shared.data(for: request).1 as? HTTPURLResponse)?.statusCode ?? 0
+            print("[F1TVImageLoader] Image fetch failed natively for \(url.lastPathComponent) (Status: \(status))")
             return nil
         }
         return image
-    }
-
-    // MARK: - WKWebView
-
-    private func ensureWebView() async {
-        guard webView == nil else { return }
-
-        let config = WKWebViewConfiguration()
-        config.websiteDataStore = .default()
-        let wv = WKWebView(frame: .zero, configuration: config)
-        wv.customUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1"
-
-        // Load a blank page pinned to the CDN origin so fetch() sends cookies.
-        let originURL = URL(string: "https://ott-img.formula1.com/")!
-        wv.loadHTMLString("<html></html>", baseURL: originURL)
-        // Brief wait for the document to commit.
-        try? await Task.sleep(nanoseconds: 400_000_000)
-
-        webView = wv
-        isWebViewReady = true
-    }
-
-    private func downloadWithWebView(url: URL) async -> UIImage? {
-        await ensureWebView()
-        guard let webView else { return nil }
-
-        let js = """
-        const response = await fetch(url, {
-            credentials: 'include',
-            headers: { 'Accept': 'image/webp,image/*,*/*' }
-        });
-        if (!response.ok) throw new Error('HTTP ' + response.status);
-        const blob = await response.blob();
-        const reader = new FileReader();
-        const base64 = await new Promise((resolve, reject) => {
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-        });
-        return base64;
-        """
-
-        do {
-            let result = try await webView.callAsyncJavaScript(
-                js,
-                arguments: ["url": url.absoluteString],
-                in: nil,
-                contentWorld: .defaultClient
-            )
-            if let dataURL = result as? String,
-               let commaIndex = dataURL.firstIndex(of: ",") {
-                let base64 = String(dataURL[dataURL.index(after: commaIndex)...])
-                if let data = Data(base64Encoded: base64),
-                   let image = UIImage(data: data) {
-                    return image
-                }
-            }
-        } catch {
-            print("[F1TVImageLoader] WKWebView fetch failed: \(error.localizedDescription)")
-        }
-        return nil
     }
 }
 

@@ -19,9 +19,6 @@ public final class VideoPlayerViewModel {
     
     /// Whether video is currently playing.
     public var isPlaying: Bool = false
-
-    /// Fallback URL for official in-web playback when API entitlement is blocked.
-    public var webFallbackURL: URL?
     
     private let contentService: F1TVContentService
     
@@ -40,7 +37,6 @@ public final class VideoPlayerViewModel {
         }
         isLoading = true
         errorMessage = nil
-        webFallbackURL = nil
         currentContentItem = item
         
         do {
@@ -64,15 +60,6 @@ public final class VideoPlayerViewModel {
             
         } catch {
             await MainActor.run {
-                if case AuthError.unknownResponse(let statusCode) = error, statusCode == 403,
-                   let fallbackURL = self.makeWebPlaybackURL(contentId: item.id) {
-                    self.webFallbackURL = fallbackURL
-                    self.errorMessage = nil
-                    self.isLoading = false
-                    print("[VideoPlayerViewModel] Entitlement blocked. Falling back to web playback: \(fallbackURL.absoluteString)")
-                    return
-                }
-
                 self.errorMessage = "Failed to load stream: \(error.localizedDescription)"
                 self.isLoading = false
                 print("[VideoPlayerViewModel] Stream load failed: \(error)")
@@ -98,16 +85,7 @@ public final class VideoPlayerViewModel {
         player = nil
         isPlaying = false
         currentContentItem = nil
-        webFallbackURL = nil
         print("[VideoPlayerViewModel] Player cleaned up.")
-    }
-
-    private func makeWebPlaybackURL(contentId: String) -> URL? {
-        let candidates = [
-            "https://f1tv.formula1.com/detail/\(contentId)",
-            "https://f1tv.formula1.com/en/detail/\(contentId)"
-        ]
-        return candidates.compactMap(URL.init(string:)).first
     }
     
     // MARK: - Private

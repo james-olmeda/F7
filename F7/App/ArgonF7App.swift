@@ -8,6 +8,7 @@ struct ArgonF7App: App {
     @State private var contentBrowserViewModel: ContentBrowserViewModel
     @State private var videoPlayerViewModel: VideoPlayerViewModel
     @State private var standingsViewModel = StandingsViewModel()
+    @State private var newsViewModel = F1NewsViewModel()
     
     init() {
         // Create the content service with a session provider
@@ -34,6 +35,7 @@ struct ArgonF7App: App {
                     .environment(contentBrowserViewModel)
                     .environment(videoPlayerViewModel)
                     .environment(standingsViewModel)
+                    .environment(newsViewModel)
             } else {
                 LoginView()
                     .environment(authViewModel)
