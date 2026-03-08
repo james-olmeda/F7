@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 public struct F1NewsView: View {
     @Environment(F1NewsViewModel.self) private var newsVM
@@ -6,53 +7,82 @@ public struct F1NewsView: View {
     public var body: some View {
         @Bindable var vm = newsVM
 
-        VStack(spacing: 0) {
+        ZStack {
+            Color.black.ignoresSafeArea()
+
             if vm.isLoading && vm.newsItems.isEmpty {
-                Spacer()
                 ProgressView("Loading latest F1 news...")
-                Spacer()
             } else if let error = vm.errorMessage, vm.newsItems.isEmpty {
-                Spacer()
-                VStack(spacing: 12) {
-                    Image(systemName: "newspaper.fill")
-                        .font(.largeTitle)
-                        .foregroundColor(.red)
-                    Text(error)
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                    Button("Retry") {
-                        Task { await vm.loadLatestNews() }
-                    }
-                    .buttonStyle(.bordered)
+                emptyState(
+                    icon: "newspaper.fill",
+                    title: "News unavailable",
+                    subtitle: error,
+                    actionTitle: "Retry"
+                ) {
+                    Task { await vm.loadLatestNews() }
                 }
-                .padding(.horizontal, 24)
-                Spacer()
             } else if vm.newsItems.isEmpty {
-                Spacer()
-                VStack(spacing: 8) {
-                    Image(systemName: "newspaper")
-                        .font(.largeTitle)
-                        .foregroundColor(.secondary)
-                    Text("No latest news available")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
+                emptyState(
+                    icon: "newspaper",
+                    title: "No latest news",
+                    subtitle: "Check back shortly for fresh F1 coverage.",
+                    actionTitle: nil,
+                    action: nil
+                )
             } else {
-                List(vm.newsItems) { item in
-                    Link(destination: item.link) {
-                        F1NewsRowView(item: item)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        HeaderView()
+                            .padding(.top, 8)
+
+                        TopicChipsView()
+
+                        Text("Top Stories")
+                            .font(.system(size: 38, weight: .black, design: .rounded))
+                            .foregroundColor(.red)
+                            .padding(.top, 2)
+
+                        if let topStory = vm.newsItems.first {
+                            NavigationLink(value: topStory) {
+                                TopStoryCard(item: topStory)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        let moreCoverage = Array(vm.newsItems.dropFirst().prefix(8))
+                        if !moreCoverage.isEmpty {
+                            Text("More Coverage")
+                                .font(.system(.caption, design: .rounded, weight: .bold))
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .padding(.top, 4)
+
+                            VStack(spacing: 0) {
+                                ForEach(Array(moreCoverage.enumerated()), id: \.element.id) { index, item in
+                                    NavigationLink(value: item) {
+                                        CoverageRow(item: item)
+                                    }
+                                    .buttonStyle(.plain)
+
+                                    if index < moreCoverage.count - 1 {
+                                        Divider()
+                                            .overlay(Color.white.opacity(0.1))
+                                    }
+                                }
+                            }
+                            .padding(14)
+                            .background(Color(white: 0.10))
+                            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        }
                     }
-                    .listRowBackground(Color(white: 0.1))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 24)
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .background(Color.black)
             }
         }
-        .background(Color.black.ignoresSafeArea())
-        .navigationTitle("Latest News")
+        .navigationDestination(for: F1NewsItem.self) { item in
+            NewsDetailView(item: item)
+        }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 if vm.isLoading {
@@ -79,45 +109,271 @@ public struct F1NewsView: View {
             await vm.refresh()
         }
     }
+
+    @ViewBuilder
+    private func emptyState(
+        icon: String,
+        title: String,
+        subtitle: String,
+        actionTitle: String?,
+        action: (() -> Void)?
+    ) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: icon)
+                .font(.system(size: 34, weight: .semibold))
+                .foregroundColor(.secondary)
+
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.white)
+
+            Text(subtitle)
+                .font(.subheadline)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+
+            if let actionTitle, let action {
+                Button(actionTitle, action: action)
+                    .buttonStyle(.bordered)
+            }
+        }
+    }
 }
 
-private struct F1NewsRowView: View {
-    let item: F1NewsItem
+private struct HeaderView: View {
+    private static let headerDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM d"
+        return formatter
+    }()
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(item.title)
-                .font(.system(.headline, design: .default, weight: .semibold))
-                .foregroundColor(.white)
-                .lineLimit(3)
-
-            if let summary = item.summary, !summary.isEmpty {
-                Text(summary)
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-                    .lineLimit(3)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: "applelogo")
+                    .font(.title3.weight(.bold))
+                    .foregroundColor(.white)
+                Text("News+")
+                    .font(.system(size: 45, weight: .black, design: .rounded))
+                    .foregroundColor(.white)
             }
 
+            Text(Self.headerDateFormatter.string(from: Date()))
+                .font(.system(size: 48, weight: .black, design: .rounded))
+                .foregroundColor(Color(red: 0.58, green: 0.58, blue: 0.62))
+                .lineLimit(1)
+        }
+    }
+}
+
+private struct TopicChipsView: View {
+    private let topics = ["Races", "Teams", "Drivers", "Business"]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                Text(item.source)
-                    .font(.caption)
-                    .foregroundColor(.red)
-
-                Spacer()
-
-                if let publishedAt = item.publishedAt {
-                    Text(relativeDateString(from: publishedAt))
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                ForEach(topics, id: \.self) { topic in
+                    HStack(spacing: 6) {
+                        Image(systemName: "circle.fill")
+                            .font(.system(size: 5))
+                        Text(topic)
+                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                    }
+                    .foregroundColor(.white.opacity(0.88))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(Color(white: 0.16))
+                    .clipShape(Capsule())
                 }
             }
         }
-        .padding(.vertical, 6)
+    }
+}
+
+private struct TopStoryCard: View {
+    let item: F1NewsItem
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            RemoteNewsImage(url: item.imageURL)
+                .frame(height: 230)
+                .overlay(alignment: .topLeading) {
+                    HStack(spacing: 6) {
+                        Text(item.source)
+                            .font(.system(.caption, design: .rounded, weight: .bold))
+                            .foregroundColor(.white.opacity(0.95))
+                        Text(publishedAtText)
+                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .padding(10)
+                }
+
+            VStack(alignment: .leading, spacing: 8) {
+                Text(item.title)
+                    .font(.system(.title3, design: .rounded, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(3)
+
+                if let summary = item.summary, !summary.isEmpty {
+                    Text(summary)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
+                }
+            }
+            .padding(14)
+            .background(Color(white: 0.10))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
-    private func relativeDateString(from date: Date) -> String {
+    private var publishedAtText: String {
+        guard let date = item.publishedAt else {
+            return ""
+        }
+
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
-        return formatter.localizedString(for: date, relativeTo: Date())
+        formatter.unitsStyle = .short
+        return "• " + formatter.localizedString(for: date, relativeTo: Date())
+    }
+}
+
+private struct CoverageRow: View {
+    let item: F1NewsItem
+
+    var body: some View {
+        HStack(spacing: 12) {
+            RemoteNewsImage(url: item.imageURL)
+                .frame(width: 86, height: 62)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(item.source)
+                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .foregroundColor(.secondary)
+
+                Text(item.title)
+                    .font(.system(.headline, design: .rounded, weight: .semibold))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, 10)
+    }
+}
+
+private struct RemoteNewsImage: View {
+    let url: URL?
+
+    var body: some View {
+        Group {
+            if let url {
+                AsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image
+                            .resizable()
+                            .scaledToFill()
+                    case .failure:
+                        placeholder
+                    case .empty:
+                        placeholder
+                    @unknown default:
+                        placeholder
+                    }
+                }
+            } else {
+                placeholder
+            }
+        }
+        .clipped()
+    }
+
+    private var placeholder: some View {
+        LinearGradient(
+            colors: [Color(white: 0.35), Color(white: 0.2), Color(white: 0.1)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}
+
+private struct NewsDetailView: View {
+    let item: F1NewsItem
+
+    private static let detailDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    RemoteNewsImage(url: item.imageURL)
+                        .frame(height: 220)
+                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+
+                    Text(item.title)
+                        .font(.system(.title2, design: .rounded, weight: .bold))
+                        .foregroundColor(.white)
+
+                    HStack(spacing: 8) {
+                        Text(item.source)
+                            .font(.caption)
+                            .foregroundColor(.red)
+
+                        if let date = item.publishedAt {
+                            Text("• \(Self.detailDateFormatter.string(from: date))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    if let summary = item.summary, !summary.isEmpty {
+                        Text(summary)
+                            .font(.body)
+                            .foregroundColor(.white.opacity(0.92))
+                    }
+                }
+                .padding(16)
+            }
+            .background(Color.black)
+
+            Divider()
+                .overlay(Color.white.opacity(0.1))
+
+            NewsArticleWebView(url: item.link)
+                .background(Color.black)
+        }
+        .background(Color.black.ignoresSafeArea())
+        .navigationTitle("News")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct NewsArticleWebView: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> WKWebView {
+        let webView = WKWebView(frame: .zero)
+        webView.isOpaque = false
+        webView.backgroundColor = .black
+        webView.scrollView.backgroundColor = .black
+        webView.load(URLRequest(url: url))
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {
+        if uiView.url != url {
+            uiView.load(URLRequest(url: url))
+        }
     }
 }
