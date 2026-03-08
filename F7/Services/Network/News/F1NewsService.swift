@@ -10,6 +10,7 @@ public final class F1NewsService {
 
     public func fetchLatestNews(limit: Int = 30) async throws -> [F1NewsItem] {
         var lastError: Error?
+        var aggregatedItems: [F1NewsItem] = []
 
         for feedURL in feedURLs {
             do {
@@ -20,16 +21,120 @@ public final class F1NewsService {
 
                 let parser = F1NewsRSSParser()
                 let items = try parser.parse(data: data)
-
-                if !items.isEmpty {
-                    return Array(items.prefix(limit))
-                }
+                aggregatedItems.append(contentsOf: items)
             } catch {
                 lastError = error
             }
         }
 
-        throw lastError ?? AuthError.invalidResponse
+        let deduplicated = deduplicate(items: aggregatedItems)
+        guard !deduplicated.isEmpty else {
+            throw lastError ?? AuthError.invalidResponse
+        }
+
+        let sorted = deduplicated.sorted {
+            ($0.publishedAt ?? .distantPast) > ($1.publishedAt ?? .distantPast)
+        }
+        let trimmed = Array(sorted.prefix(limit))
+
+        return await enrichMissingImages(in: trimmed)
+    }
+
+    private func deduplicate(items: [F1NewsItem]) -> [F1NewsItem] {
+        var seen = Set<String>()
+        var result: [F1NewsItem] = []
+
+        for item in items {
+            if seen.insert(item.id).inserted {
+                result.append(item)
+            }
+        }
+
+        return result
+    }
+
+    private func enrichMissingImages(in items: [F1NewsItem]) async -> [F1NewsItem] {
+        var enriched = items
+        var lookupsRemaining = 8
+
+        for index in enriched.indices {
+            if enriched[index].imageURL != nil {
+                continue
+            }
+            guard lookupsRemaining > 0 else {
+                break
+            }
+
+            lookupsRemaining -= 1
+
+            if let discoveredImageURL = await fetchPreviewImage(for: enriched[index].link) {
+                let current = enriched[index]
+                enriched[index] = F1NewsItem(
+                    id: current.id,
+                    title: current.title,
+                    summary: current.summary,
+                    link: current.link,
+                    imageURL: discoveredImageURL,
+                    publishedAt: current.publishedAt,
+                    source: current.source
+                )
+            }
+        }
+
+        return enriched
+    }
+
+    private func fetchPreviewImage(for articleURL: URL) async -> URL? {
+        do {
+            let (data, response) = try await URLSession.shared.data(from: articleURL)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                return nil
+            }
+
+            guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .unicode) else {
+                return nil
+            }
+
+            return extractMetaImageURL(fromHTML: html, baseURL: articleURL)
+        } catch {
+            return nil
+        }
+    }
+
+    private func extractMetaImageURL(fromHTML html: String, baseURL: URL) -> URL? {
+        let patterns = [
+            #"<meta[^>]*property=[\"']og:image[\"'][^>]*content=[\"']([^\"']+)[\"']"#,
+            #"<meta[^>]*content=[\"']([^\"']+)[\"'][^>]*property=[\"']og:image[\"']"#,
+            #"<meta[^>]*name=[\"']twitter:image[\"'][^>]*content=[\"']([^\"']+)[\"']"#,
+            #"<meta[^>]*content=[\"']([^\"']+)[\"'][^>]*name=[\"']twitter:image[\"']"#
+        ]
+
+        for pattern in patterns {
+            guard let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]) else {
+                continue
+            }
+
+            let range = NSRange(html.startIndex..<html.endIndex, in: html)
+            guard let match = regex.firstMatch(in: html, options: [], range: range),
+                  let valueRange = Range(match.range(at: 1), in: html) else {
+                continue
+            }
+
+            let rawValue = String(html[valueRange]).trimmingCharacters(in: .whitespacesAndNewlines)
+            if rawValue.hasPrefix("//") {
+                return URL(string: "https:" + rawValue)
+            }
+
+            if let absolute = URL(string: rawValue), absolute.scheme != nil {
+                return absolute
+            }
+
+            if let relative = URL(string: rawValue, relativeTo: baseURL)?.absoluteURL {
+                return relative
+            }
+        }
+
+        return nil
     }
 }
 
@@ -40,6 +145,7 @@ private final class F1NewsRSSParser: NSObject, XMLParserDelegate {
         var description: String = ""
         var pubDate: String = ""
         var source: String = ""
+        var imageURL: String = ""
     }
 
     private var items: [F1NewsItem] = []
@@ -76,6 +182,25 @@ private final class F1NewsRSSParser: NSObject, XMLParserDelegate {
         if elementName == "item" || elementName == "entry" {
             currentItem = CurrentItem(source: channelTitle)
         }
+
+        guard var item = currentItem else { return }
+
+        let element = elementName.lowercased()
+        if (element == "media:content" || element == "media:thumbnail" || element == "enclosure"),
+           item.imageURL.isEmpty,
+           let candidate = attributeDict["url"],
+           isLikelyImageURL(candidate) {
+            item.imageURL = candidate
+        }
+
+        if element == "link", item.link.isEmpty,
+           let href = attributeDict["href"],
+           let rel = attributeDict["rel"],
+           rel.lowercased() == "alternate" {
+            item.link = href
+        }
+
+        currentItem = item
     }
 
     func parser(_ parser: XMLParser, foundCharacters string: String) {
@@ -104,6 +229,9 @@ private final class F1NewsRSSParser: NSObject, XMLParserDelegate {
         case "description", "summary", "content":
             if !trimmed.isEmpty {
                 item.description = trimmed
+                if item.imageURL.isEmpty, let extractedImage = extractImageURL(fromHTML: trimmed) {
+                    item.imageURL = extractedImage
+                }
             }
         case "pubDate", "published", "updated":
             if !trimmed.isEmpty {
@@ -129,12 +257,14 @@ private final class F1NewsRSSParser: NSObject, XMLParserDelegate {
         let cleanSummary = stripHTML(from: item.description)
         let publishedAt = parseDate(item.pubDate)
         let id = url.absoluteString
+        let imageURL = URL(string: item.imageURL)
 
         return F1NewsItem(
             id: id,
             title: item.title,
             summary: cleanSummary,
             link: url,
+            imageURL: imageURL,
             publishedAt: publishedAt,
             source: item.source
         )
@@ -152,6 +282,39 @@ private final class F1NewsRSSParser: NSObject, XMLParserDelegate {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return decoded.isEmpty ? nil : decoded
+    }
+
+    private func extractImageURL(fromHTML html: String) -> String? {
+        guard let regex = try? NSRegularExpression(pattern: #"<img[^>]*src=\"([^\"]+)\""#, options: [.caseInsensitive]) else {
+            return nil
+        }
+
+        let range = NSRange(html.startIndex..<html.endIndex, in: html)
+        guard let match = regex.firstMatch(in: html, options: [], range: range),
+              let sourceRange = Range(match.range(at: 1), in: html) else {
+            return nil
+        }
+
+        let candidate = String(html[sourceRange])
+        return isLikelyImageURL(candidate) ? candidate : nil
+    }
+
+    private func isLikelyImageURL(_ value: String) -> Bool {
+        guard let url = URL(string: value), let scheme = url.scheme?.lowercased() else {
+            return false
+        }
+
+        guard scheme == "http" || scheme == "https" else {
+            return false
+        }
+
+        let lowercase = value.lowercased()
+        return lowercase.contains(".jpg")
+            || lowercase.contains(".jpeg")
+            || lowercase.contains(".png")
+            || lowercase.contains(".webp")
+            || lowercase.contains(".avif")
+            || lowercase.contains("image")
     }
 
     private func parseDate(_ value: String) -> Date? {

@@ -1,5 +1,4 @@
 import SwiftUI
-import WebKit
 
 public struct F1NewsView: View {
     @Environment(F1NewsViewModel.self) private var newsVM
@@ -8,7 +7,7 @@ public struct F1NewsView: View {
         @Bindable var vm = newsVM
 
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
 
             if vm.isLoading && vm.newsItems.isEmpty {
                 ProgressView("Loading latest F1 news...")
@@ -38,8 +37,8 @@ public struct F1NewsView: View {
                         TopicChipsView()
 
                         Text("Top Stories")
-                            .font(.system(size: 38, weight: .black, design: .rounded))
-                            .foregroundColor(.red)
+                            .font(.inter(size: 38, weight: .black, design: .rounded))
+                            .foregroundColor(.appAccent)
                             .padding(.top, 2)
 
                         if let topStory = vm.newsItems.first {
@@ -52,12 +51,13 @@ public struct F1NewsView: View {
                         let moreCoverage = Array(vm.newsItems.dropFirst().prefix(8))
                         if !moreCoverage.isEmpty {
                             Text("More Coverage")
-                                .font(.system(.caption, design: .rounded, weight: .bold))
+                                .font(.inter(.caption, design: .rounded, weight: .bold))
                                 .foregroundColor(.secondary)
                                 .textCase(.uppercase)
                                 .padding(.top, 4)
 
                             VStack(spacing: 0) {
+                                
                                 ForEach(Array(moreCoverage.enumerated()), id: \.element.id) { index, item in
                                     NavigationLink(value: item) {
                                         CoverageRow(item: item)
@@ -66,12 +66,12 @@ public struct F1NewsView: View {
 
                                     if index < moreCoverage.count - 1 {
                                         Divider()
-                                            .overlay(Color.white.opacity(0.1))
+                                            .overlay(Color(.separator))
                                     }
                                 }
                             }
                             .padding(14)
-                            .background(Color(white: 0.10))
+                            .background(Color(.secondarySystemBackground))
                             .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         }
                     }
@@ -120,15 +120,15 @@ public struct F1NewsView: View {
     ) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon)
-                .font(.system(size: 34, weight: .semibold))
+                .font(.inter(size: 34, weight: .semibold))
                 .foregroundColor(.secondary)
 
             Text(title)
-                .font(.headline)
-                .foregroundColor(.white)
+                .font(.inter(.headline))
+                .foregroundColor(.primary)
 
             Text(subtitle)
-                .font(.subheadline)
+                .font(.inter(.subheadline))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 24)
@@ -151,17 +151,15 @@ private struct HeaderView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             HStack(spacing: 6) {
-                Image(systemName: "applelogo")
-                    .font(.title3.weight(.bold))
-                    .foregroundColor(.white)
-                Text("News+")
-                    .font(.system(size: 45, weight: .black, design: .rounded))
-                    .foregroundColor(.white)
+               
+                Text("Argon F7 News")
+                    .font(.inter(size: 45, weight: .black, design: .rounded))
+                    .foregroundColor(.primary)
             }
 
             Text(Self.headerDateFormatter.string(from: Date()))
-                .font(.system(size: 48, weight: .black, design: .rounded))
-                .foregroundColor(Color(red: 0.58, green: 0.58, blue: 0.62))
+                .font(.inter(size: 48, weight: .black, design: .rounded))
+                .foregroundColor(.secondary)
                 .lineLimit(1)
         }
     }
@@ -176,14 +174,14 @@ private struct TopicChipsView: View {
                 ForEach(topics, id: \.self) { topic in
                     HStack(spacing: 6) {
                         Image(systemName: "circle.fill")
-                            .font(.system(size: 5))
+                            .font(.inter(size: 5))
                         Text(topic)
-                            .font(.system(.subheadline, design: .rounded, weight: .semibold))
+                            .font(.inter(.subheadline, design: .rounded, weight: .semibold))
                     }
-                    .foregroundColor(.white.opacity(0.88))
+                    .foregroundColor(.primary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
-                    .background(Color(white: 0.16))
+                    .background(Color(.tertiarySystemFill))
                     .clipShape(Capsule())
                 }
             }
@@ -201,10 +199,10 @@ private struct TopStoryCard: View {
                 .overlay(alignment: .topLeading) {
                     HStack(spacing: 6) {
                         Text(item.source)
-                            .font(.system(.caption, design: .rounded, weight: .bold))
+                            .font(.inter(.caption, design: .rounded, weight: .bold))
                             .foregroundColor(.white.opacity(0.95))
                         Text(publishedAtText)
-                            .font(.system(.caption, design: .rounded, weight: .medium))
+                            .font(.inter(.caption, design: .rounded, weight: .medium))
                             .foregroundColor(.white.opacity(0.8))
                     }
                     .padding(10)
@@ -212,19 +210,19 @@ private struct TopStoryCard: View {
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(item.title)
-                    .font(.system(.title3, design: .rounded, weight: .bold))
-                    .foregroundColor(.white)
+                    .font(.inter(.title3, design: .rounded, weight: .bold))
+                    .foregroundColor(.primary)
                     .lineLimit(3)
 
                 if let summary = item.summary, !summary.isEmpty {
                     Text(summary)
-                        .font(.subheadline)
+                        .font(.inter(.subheadline))
                         .foregroundColor(.secondary)
                         .lineLimit(3)
                 }
             }
             .padding(14)
-            .background(Color(white: 0.10))
+            .background(Color(.secondarySystemBackground))
         }
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
@@ -251,12 +249,12 @@ private struct CoverageRow: View {
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(item.source)
-                    .font(.system(.caption, design: .rounded, weight: .semibold))
+                    .font(.inter(.caption, design: .rounded, weight: .semibold))
                     .foregroundColor(.secondary)
 
                 Text(item.title)
-                    .font(.system(.headline, design: .rounded, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.inter(.headline, design: .rounded, weight: .semibold))
+                    .foregroundColor(.primary)
                     .lineLimit(2)
             }
 
@@ -296,7 +294,7 @@ private struct RemoteNewsImage: View {
 
     private var placeholder: some View {
         LinearGradient(
-            colors: [Color(white: 0.35), Color(white: 0.2), Color(white: 0.1)],
+            colors: [Color(.systemGray4), Color(.systemGray5), Color(.systemGray6)],
             startPoint: .top,
             endPoint: .bottom
         )
@@ -306,6 +304,10 @@ private struct RemoteNewsImage: View {
 private struct NewsDetailView: View {
     let item: F1NewsItem
 
+    @State private var articleText: String?
+    @State private var isLoadingArticle = false
+    @State private var articleError: String?
+
     private static let detailDateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
@@ -314,66 +316,169 @@ private struct NewsDetailView: View {
     }()
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 12) {
-                    RemoteNewsImage(url: item.imageURL)
-                        .frame(height: 220)
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        ScrollView {
+            VStack(alignment: .leading, spacing: 14) {
+                RemoteNewsImage(url: item.imageURL)
+                    .frame(height: 220)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
 
-                    Text(item.title)
-                        .font(.system(.title2, design: .rounded, weight: .bold))
-                        .foregroundColor(.white)
+                Text(item.title)
+                    .font(.inter(.title2, design: .rounded, weight: .bold))
+                    .foregroundColor(.primary)
 
-                    HStack(spacing: 8) {
-                        Text(item.source)
-                            .font(.caption)
-                            .foregroundColor(.red)
+                HStack(spacing: 8) {
+                    Text(item.source)
+                        .font(.inter(.caption))
+                        .foregroundColor(.appAccent)
 
-                        if let date = item.publishedAt {
-                            Text("• \(Self.detailDateFormatter.string(from: date))")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    if let summary = item.summary, !summary.isEmpty {
-                        Text(summary)
-                            .font(.body)
-                            .foregroundColor(.white.opacity(0.92))
+                    if let date = item.publishedAt {
+                        Text("• \(Self.detailDateFormatter.string(from: date))")
+                            .font(.inter(.caption))
+                            .foregroundColor(.secondary)
                     }
                 }
-                .padding(16)
+
+                if let summary = item.summary, !summary.isEmpty {
+                    Text(summary)
+                        .font(.inter(.body))
+                        .foregroundColor(.primary)
+                }
+
+                Divider()
+                    .overlay(Color(.separator))
+
+                Group {
+                    if isLoadingArticle {
+                        ProgressView("Loading full article...")
+                            .tint(.appAccent)
+                    } else if let articleText, !articleText.isEmpty {
+                        Text(articleText)
+                            .font(.inter(.body, design: .default, weight: .regular))
+                            .foregroundColor(.primary)
+                            .lineSpacing(7)
+                            .textSelection(.enabled)
+                    } else if let articleError {
+                        Text(articleError)
+                            .font(.inter(.subheadline))
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Link(destination: item.link) {
+                    Label("Open original source", systemImage: "arrow.up.right.square")
+                        .font(.inter(.footnote))
+                }
+                .foregroundColor(.secondary)
+                .padding(.top, 6)
             }
-            .background(Color.black)
-
-            Divider()
-                .overlay(Color.white.opacity(0.1))
-
-            NewsArticleWebView(url: item.link)
-                .background(Color.black)
+            .padding(16)
         }
-        .background(Color.black.ignoresSafeArea())
+        .background(Color(.systemBackground).ignoresSafeArea())
         .navigationTitle("News")
         .navigationBarTitleDisplayMode(.inline)
+        .task(id: item.id) {
+            await loadFullArticle()
+        }
+    }
+
+    private func loadFullArticle() async {
+        guard !isLoadingArticle else { return }
+        isLoadingArticle = true
+        articleError = nil
+
+        do {
+            let (data, response) = try await URLSession.shared.data(from: item.link)
+            guard let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) else {
+                throw AuthError.invalidResponse
+            }
+
+            guard let html = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .unicode) else {
+                throw AuthError.invalidResponse
+            }
+
+            let extracted = ArticleContentExtractor.extractText(fromHTML: html)
+            if extracted.isEmpty {
+                articleText = item.summary ?? "No readable article body found for this source."
+            } else {
+                articleText = extracted
+            }
+        } catch {
+            articleError = "Could not load full article text."
+            articleText = item.summary
+        }
+
+        isLoadingArticle = false
     }
 }
 
-private struct NewsArticleWebView: UIViewRepresentable {
-    let url: URL
+private enum ArticleContentExtractor {
+    static func extractText(fromHTML html: String) -> String {
+        let source = mainSection(from: html)
 
-    func makeUIView(context: Context) -> WKWebView {
-        let webView = WKWebView(frame: .zero)
-        webView.isOpaque = false
-        webView.backgroundColor = .black
-        webView.scrollView.backgroundColor = .black
-        webView.load(URLRequest(url: url))
-        return webView
+        if let paragraphRegex = try? NSRegularExpression(pattern: "<p[^>]*>(.*?)</p>", options: [.caseInsensitive, .dotMatchesLineSeparators]) {
+            let range = NSRange(source.startIndex..<source.endIndex, in: source)
+            let paragraphs = paragraphRegex.matches(in: source, options: [], range: range).compactMap { match -> String? in
+                guard let bodyRange = Range(match.range(at: 1), in: source) else {
+                    return nil
+                }
+
+                let raw = String(source[bodyRange])
+                let clean = decodeEntities(stripTags(raw)).trimmingCharacters(in: .whitespacesAndNewlines)
+                return clean.count >= 50 ? clean : nil
+            }
+
+            let joined = paragraphs.prefix(30).joined(separator: "\n\n")
+            if !joined.isEmpty {
+                return joined
+            }
+        }
+
+        let fallback = decodeEntities(stripTags(source))
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        if fallback.count > 6000 {
+            let index = fallback.index(fallback.startIndex, offsetBy: 6000)
+            return String(fallback[..<index]) + "..."
+        }
+
+        return fallback
     }
 
-    func updateUIView(_ uiView: WKWebView, context: Context) {
-        if uiView.url != url {
-            uiView.load(URLRequest(url: url))
+    private static func mainSection(from html: String) -> String {
+        let withoutScripts = html
+            .replacingOccurrences(of: "<script[\\s\\S]*?</script>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "<style[\\s\\S]*?</style>", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "<noscript[\\s\\S]*?</noscript>", with: "", options: .regularExpression)
+
+        let patterns = [
+            "<article[^>]*>([\\s\\S]*?)</article>",
+            "<main[^>]*>([\\s\\S]*?)</main>",
+            "<body[^>]*>([\\s\\S]*?)</body>"
+        ]
+
+        for pattern in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+               let match = regex.firstMatch(in: withoutScripts, options: [], range: NSRange(withoutScripts.startIndex..<withoutScripts.endIndex, in: withoutScripts)),
+               let range = Range(match.range(at: 1), in: withoutScripts) {
+                return String(withoutScripts[range])
+            }
         }
+
+        return withoutScripts
+    }
+
+    private static func stripTags(_ input: String) -> String {
+        input.replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+    }
+
+    private static func decodeEntities(_ input: String) -> String {
+        input
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
     }
 }

@@ -25,7 +25,7 @@ public struct VideoPlayerView: View {
                             HStack {
                                 Image(systemName: "exclamationmark.triangle.fill")
                                 Text(telemetryVM.currentTrackStatus.description.uppercased())
-                                    .font(.system(.caption, design: .default, weight: .black))
+                                    .font(.inter(.caption, design: .default, weight: .black))
                             }
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
@@ -61,10 +61,10 @@ public struct VideoPlayerView: View {
                                 .scaleEffect(1.5)
                                 .tint(.white)
                             Text("Loading stream...")
-                                .font(.subheadline)
+                                .font(.inter(.subheadline))
                                 .foregroundColor(.white)
                             Text(contentItem.title)
-                                .font(.caption)
+                                .font(.inter(.caption))
                                 .foregroundColor(.white.opacity(0.7))
                         }
                     }
@@ -72,12 +72,12 @@ public struct VideoPlayerView: View {
                     VStack(spacing: 16) {
                         ProgressView()
                             .scaleEffect(1.5)
-                            .tint(.red)
+                            .tint(.appAccent)
                         Text("Loading stream...")
-                            .font(.subheadline)
+                            .font(.inter(.subheadline))
                             .foregroundColor(.secondary)
                         Text(contentItem.title)
-                            .font(.caption)
+                            .font(.inter(.caption))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -85,13 +85,13 @@ public struct VideoPlayerView: View {
             } else if let error = playerVM.errorMessage {
                 VStack(spacing: 16) {
                     Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.largeTitle)
+                        .font(.inter(.largeTitle))
                         .foregroundColor(.red)
                     Text("Playback Error")
-                        .font(.headline)
+                        .font(.inter(.headline))
                         .foregroundColor(.white)
                     Text(error)
-                        .font(.subheadline)
+                        .font(.inter(.subheadline))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     
@@ -99,7 +99,7 @@ public struct VideoPlayerView: View {
                         Task { await playerVM.loadContent(contentItem) }
                     }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(.appAccent)
                 }
                 .padding()
             }

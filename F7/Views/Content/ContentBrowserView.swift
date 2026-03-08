@@ -34,17 +34,17 @@ public struct ContentBrowserView: View {
                 Spacer()
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle")
-                        .font(.largeTitle)
+                        .font(.inter(.largeTitle))
                         .foregroundColor(.red)
                     Text(error)
-                        .font(.subheadline)
+                        .font(.inter(.subheadline))
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
                     Button("Retry") {
                         Task { await contentVM.loadContent() }
                     }
                     .buttonStyle(.bordered)
-                    .tint(.red)
+                    .tint(.appAccent)
                 }
                 .padding()
                 Spacer()
@@ -52,10 +52,10 @@ public struct ContentBrowserView: View {
                 Spacer()
                 VStack(spacing: 8) {
                     Image(systemName: "tv.slash")
-                        .font(.largeTitle)
+                        .font(.inter(.largeTitle))
                         .foregroundColor(.secondary)
                     Text("No content available")
-                        .font(.subheadline)
+                        .font(.inter(.subheadline))
                         .foregroundColor(.secondary)
                 }
                 Spacer()
@@ -74,7 +74,7 @@ public struct ContentBrowserView: View {
                 }
             }
         }
-        .background(Color.black)
+        .background(Color(.systemBackground))
         .navigationTitle("F1TV")
         .navigationDestination(for: F1TVContentItem.self) { item in
             VideoPlayerView(contentItem: item)
@@ -99,11 +99,11 @@ fileprivate struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(title)
-                .font(.system(.caption, design: .default, weight: .semibold))
+                .font(.inter(.caption, design: .default, weight: .semibold))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
-                .background(isSelected ? Color.red : Color(white: 0.15))
-                .foregroundColor(isSelected ? .white : .secondary)
+                .background(isSelected ? Color.appAccent : Color(.tertiarySystemFill))
+                .foregroundColor(isSelected ? .white : .primary)
                 .cornerRadius(16)
         }
     }
@@ -123,10 +123,10 @@ fileprivate struct ContentCardView: View {
                         .cornerRadius(8)
                 } else {
                     RoundedRectangle(cornerRadius: 8)
-                        .fill(Color(white: 0.12))
+                        .fill(Color(.secondarySystemFill))
                         .frame(width: 120, height: 68)
                     Image(systemName: "play.rectangle.fill")
-                        .font(.title2)
+                        .font(.inter(.title2))
                         .foregroundColor(.secondary)
                 }
                 
@@ -136,11 +136,11 @@ fileprivate struct ContentCardView: View {
                         HStack {
                             Spacer()
                             Text("LIVE")
-                                .font(.system(.caption2, design: .default, weight: .black))
+                                .font(.inter(.caption2, design: .default, weight: .black))
                                 .foregroundColor(.white)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(Color.red)
+                                .background(Color.appAccent)
                                 .cornerRadius(4)
                         }
                         Spacer()
@@ -153,24 +153,24 @@ fileprivate struct ContentCardView: View {
             // Info
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.title)
-                    .font(.system(.subheadline, design: .default, weight: .semibold))
-                    .foregroundColor(.white)
+                    .font(.inter(.subheadline, design: .default, weight: .semibold))
+                    .foregroundColor(.primary)
                     .lineLimit(2)
                 
                 if let gpName = item.grandPrixName {
                     Text(gpName)
-                        .font(.caption)
+                        .font(.inter(.caption))
                         .foregroundColor(.secondary)
                 }
                 
                 HStack(spacing: 8) {
                     Text(item.sessionType.displayName)
-                        .font(.system(.caption2, design: .default, weight: .medium))
-                        .foregroundColor(.red)
+                        .font(.inter(.caption2, design: .default, weight: .medium))
+                        .foregroundColor(.appAccent)
                     
                     if let duration = item.durationSeconds {
                         Text(formatDuration(duration))
-                            .font(.caption2)
+                            .font(.inter(.caption2))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -179,11 +179,11 @@ fileprivate struct ContentCardView: View {
             Spacer()
             
             Image(systemName: "chevron.right")
-                .font(.caption)
+                .font(.inter(.caption))
                 .foregroundColor(.secondary)
         }
         .padding(12)
-        .background(Color(white: 0.08))
+        .background(Color(.secondarySystemBackground))
         .cornerRadius(12)
     }
     

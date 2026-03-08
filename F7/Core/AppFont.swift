@@ -2,26 +2,11 @@ import SwiftUI
 
 public extension Font {
     static func inter(size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
-        .custom(interName(for: weight), size: size)
+        .custom("Inter", size: size).weight(weight)
     }
 
     static func inter(_ style: Font.TextStyle, design: Font.Design = .default, weight: Font.Weight = .regular) -> Font {
-        .custom(interName(for: weight), size: interBaseSize(for: style), relativeTo: style)
-    }
-
-    private static func interName(for weight: Font.Weight) -> String {
-        switch weight {
-        case .black, .heavy:
-            return "Inter-Black"
-        case .bold, .semibold:
-            return "Inter-Bold"
-        case .medium:
-            return "Inter-Medium"
-        case .light, .thin, .ultraLight:
-            return "Inter-Light"
-        default:
-            return "Inter-Regular"
-        }
+        .custom("Inter", size: interBaseSize(for: style), relativeTo: style).weight(weight)
     }
 
     private static func interBaseSize(for style: Font.TextStyle) -> CGFloat {
@@ -42,4 +27,3 @@ public extension Font {
         }
     }
 }
-

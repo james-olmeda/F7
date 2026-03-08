@@ -48,7 +48,7 @@ struct F1DynamicIslandWidget: Widget {
                 // Expanded UI (When user long-presses the island)
                 DynamicIslandExpandedRegion(.leading) {
                     Text(context.attributes.trackedDriverAcronym)
-                        .font(.headline)
+                        .font(.inter(.headline))
                 }
                 DynamicIslandExpandedRegion(.trailing) {
                     Text(context.state.trackSafetyStatus)

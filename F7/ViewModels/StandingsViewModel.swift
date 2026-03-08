@@ -31,11 +31,11 @@ public final class StandingsViewModel {
     }
 
     public var selectedRoundLabel: String {
-        guard let selectedRound else { return "Season Total" }
+        guard let selectedRound else { return "\(selectedSeason) Season Total" }
         if let race = availableRounds.first(where: { $0.round == selectedRound }) {
-            return "R\(race.round): \(race.raceName)"
+            return "\(selectedSeason) Season • \(race.raceName)"
         }
-        return "Round \(selectedRound)"
+        return "\(selectedSeason) Season • Round \(selectedRound)"
     }
 
     public func seasonChanged() async {
@@ -75,17 +75,40 @@ public final class StandingsViewModel {
         }
 
         do {
-            let rounds = try await service.fetchRaceRounds(season: selectedSeason)
+            let currentYear = Calendar.current.component(.year, from: Date())
+            let now = Date()
+
+            var seasonToLoad = selectedSeason
+            var rounds = try await service.fetchRaceRounds(season: seasonToLoad)
+
+            if latestCompletedRound(in: rounds, asOf: now) == nil, seasonToLoad == currentYear {
+                let previousSeason = currentYear - 1
+                let previousRounds = try await service.fetchRaceRounds(season: previousSeason)
+                if latestCompletedRound(in: previousRounds, asOf: now) != nil {
+                    seasonToLoad = previousSeason
+                    rounds = previousRounds
+                    selectedSeason = previousSeason
+                }
+            }
+
             availableRounds = rounds
-            lastLoadedSeason = selectedSeason
+            lastLoadedSeason = seasonToLoad
 
             if selectedRound == nil || forceRefresh {
-                selectedRound = rounds.last?.round
+                selectedRound = latestCompletedRound(in: rounds, asOf: now) ?? rounds.last?.round
             }
         } catch {
             availableRounds = []
             selectedRound = nil
             lastLoadedSeason = selectedSeason
         }
+    }
+
+    private func latestCompletedRound(in rounds: [F1RaceRound], asOf now: Date) -> Int? {
+        let completed = rounds.filter { round in
+            guard let raceDate = round.raceDate else { return false }
+            return raceDate <= now
+        }
+        return completed.max(by: { $0.round < $1.round })?.round
     }
 }

@@ -5,6 +5,10 @@ import WebKit
 /// By loading the official player page, we let WebKit solve all CloudFront WAF challenges naturally.
 @MainActor
 public final class F1TVStreamExtractor: NSObject, WKScriptMessageHandler, WKNavigationDelegate {
+    public func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        // No-op: this extractor currently uses callAsyncJavaScript instead of message bridging.
+    }
+    
     
     private let webView: WKWebView
     private var activeContinuation: CheckedContinuation<F1TVStreamEntitlement, Error>?

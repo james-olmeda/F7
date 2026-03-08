@@ -9,18 +9,18 @@ public struct PredictionOverlayView: View {
         VStack(alignment: .leading, spacing: 12) {
             let driverName = DriverInfo.all[prediction.driverNumber]?.abbreviation ?? "DRV \(prediction.driverNumber)"
             Text("LIVE PREDICTION: \(driverName)")
-                .font(.caption)
+                .font(.inter(.caption))
                 .fontWeight(.bold)
                 .foregroundColor(.secondary)
             
             HStack {
                 Text("Win Probability")
-                    .font(.subheadline)
+                    .font(.inter(.subheadline))
                 Spacer()
                 
                 if let winProb = prediction.winProbability {
                     Text("\(Int(winProb * 100))%")
-                        .font(.headline)
+                        .font(.inter(.headline))
                         .monospacedDigit()
                         .foregroundColor(probabilityColor(for: winProb))
                 } else {

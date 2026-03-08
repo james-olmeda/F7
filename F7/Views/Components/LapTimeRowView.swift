@@ -19,20 +19,20 @@ public struct LapTimeRowView: View {
             
             // Grid Position
             Text("\(timingData.position)")
-                .font(.system(.subheadline, design: .rounded, weight: .bold))
+                .font(.inter(.subheadline, design: .rounded, weight: .bold))
                 .foregroundColor(.secondary)
                 .frame(width: 24, alignment: .trailing)
             
             // Driver abbreviation
             Text(driverInfo?.abbreviation ?? "---")
-                .font(.system(.headline, design: .default, weight: .bold))
-                .foregroundColor(.white)
+                .font(.inter(.headline, design: .default, weight: .bold))
+                .foregroundColor(.primary)
                 .frame(width: 44, alignment: .leading)
             
             // Last lap time
             if let lastLap = timingData.lastLapTime {
                 Text(formatLapTime(lastLap))
-                    .font(.system(.caption, design: .monospaced, weight: .regular))
+                    .font(.inter(.caption, design: .monospaced, weight: .regular))
                     .monospacedDigit()
                     .foregroundColor(.secondary)
             }
@@ -42,7 +42,7 @@ public struct LapTimeRowView: View {
             // Pit indicator
             if timingData.inPitLane {
                 Text("PIT")
-                    .font(.system(.caption2, design: .default, weight: .bold))
+                    .font(.inter(.caption2, design: .default, weight: .bold))
                     .foregroundColor(.black)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
@@ -53,12 +53,12 @@ public struct LapTimeRowView: View {
             // Interval to Leader
             if let interval = timingData.intervalToLeader {
                 Text("+\(String(format: "%.3f", interval))")
-                    .font(.system(.subheadline, design: .rounded, weight: .medium))
+                    .font(.inter(.subheadline, design: .rounded, weight: .medium))
                     .monospacedDigit()
                     .foregroundColor(.secondary)
             } else {
                 Text("INTERVAL")
-                    .font(.system(.caption2, design: .default, weight: .semibold))
+                    .font(.inter(.caption2, design: .default, weight: .semibold))
                     .foregroundColor(Color(red: 0.6, green: 0.2, blue: 0.9))
             }
         }

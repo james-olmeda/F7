@@ -2,6 +2,7 @@ import Foundation
 import Combine
 
 /// Main ViewModel that manages the incoming telemetry state
+@MainActor
 @Observable
 public final class TelemetryViewModel {
     
@@ -24,6 +25,14 @@ public final class TelemetryViewModel {
 
     /// Pit stops from OpenF1
     public var recentPitStops: [OpenF1PitStop] = []
+    public var recentOvertakes: [OpenF1Overtake] = []
+    public var recentTeamRadio: [OpenF1TeamRadio] = []
+    public var latestIntervalsByDriver: [Int: OpenF1Interval] = [:]
+    public var latestStintsByDriver: [Int: OpenF1Stint] = [:]
+
+    /// Active OpenF1 session metadata
+    public var activeSession: OpenF1Session?
+    public var currentLap: Int?
     
     /// Telemetry data for specific drivers, keyed by Driver Number
     public var carDataByDriver: [Int: CarData] = [:]
@@ -38,52 +47,12 @@ public final class TelemetryViewModel {
     // Example: private let signalRService = DIContainer.shared.resolve(type: SignalRServiceProtocol.self)
     private let openF1Client = OpenF1RestClient()
     private var raceControlTimer: Timer?
+    private var refreshTick: Int = 0
 
     public init() {
         print("[TelemetryViewModel] Initialized. Ready to bind to telemetry streams.")
-        loadMockData()
         startRaceControlPolling()
         Task { await refreshRaceControlFeed() }
-    }
-    
-    /// Populates the ViewModel with a realistic mock F1 grid for development/preview purposes.
-    private func loadMockData() {
-        let mockDrivers: [(number: Int, position: Int, interval: Double?, lastLap: Double?, bestLap: Double?, inPit: Bool)] = [
-            (1,   1,  nil,    91.234, 90.876, false),  // VER
-            (4,   2,  0.892,  91.456, 91.102, false),  // NOR
-            (81,  3,  1.204,  91.789, 91.345, false),  // PIA
-            (44,  4,  2.541,  92.012, 91.567, false),  // HAM
-            (63,  5,  3.108,  92.234, 91.890, false),  // RUS
-            (16,  6,  4.567,  92.456, 92.012, false),  // LEC
-            (55,  7,  5.234,  92.678, 92.234, false),  // SAI
-            (14,  8,  7.891,  93.012, 92.567, false),  // ALO
-            (18,  9,  9.345,  93.234, 92.890, false),  // STR
-            (10,  10, 11.234, 93.456, 93.012, false),  // GAS
-            (31,  11, 12.567, 93.678, 93.234, false),  // OCO
-            (23,  12, 14.891, 93.890, 93.456, false),  // ALB
-            (2,   13, 16.234, 94.012, 93.678, false),  // SAR
-            (27,  14, 18.567, 94.234, 93.890, false),  // HUL
-            (20,  15, 20.123, 94.456, 94.012, false),  // MAG
-            (22,  16, 22.456, 94.678, 94.234, false),  // TSU
-            (30,  17, 24.789, 94.890, 94.456, true),   // LAW
-            (77,  18, 27.123, 95.012, 94.678, false),  // BOT
-            (24,  19, 29.456, 95.234, 94.890, false),  // ZHO
-            (11,  20, 31.789, 95.456, 95.012, false),  // PER
-        ]
-        
-        for driver in mockDrivers {
-            let timing = TimingData(
-                driverNumber: driver.number,
-                position: driver.position,
-                bestLapTime: driver.bestLap,
-                lastLapTime: driver.lastLap,
-                intervalToLeader: driver.interval,
-                inPitLane: driver.inPit
-            )
-            timingDataByDriver[driver.number] = timing
-        }
-        
-        print("[TelemetryViewModel] Loaded mock data for \(mockDrivers.count) drivers.")
     }
     
     // Methods to handle incoming decodings
@@ -106,22 +75,54 @@ public final class TelemetryViewModel {
 
     public func refreshRaceControlFeed() async {
         isRaceControlLoading = true
+        refreshTick += 1
 
         do {
-            let messages = try await openF1Client.fetchRaceControlFeed(limit: 25)
-            self.raceControlFeed = messages
-            self.latestRaceControlMessage = messages.first
-            if let first = messages.first {
-                self.currentTrackStatus = mapTrackStatus(from: first)
+            if activeSession == nil || refreshTick % 5 == 0 {
+                let sessions = try await openF1Client.fetchSessions(sessionKey: "latest")
+                guard let session = sessions.first else {
+                    clearLiveStateForNoSession()
+                    isRaceControlLoading = false
+                    return
+                }
+                activeSession = session
             }
 
-            // Also fetch latest weather and pitstops in parallel if possible, or sequentially here
-            let weatherData = try await openF1Client.fetchWeather(sessionKey: "latest")
-            self.weatherHistory = weatherData.sorted(by: { $0.date > $1.date })
-            self.latestWeather = weatherHistory.first
+            guard let activeSession else {
+                clearLiveStateForNoSession()
+                isRaceControlLoading = false
+                return
+            }
 
-            let pitStops = try await openF1Client.fetchPitStops(sessionKey: "latest")
-            self.recentPitStops = pitStops.sorted(by: { $0.date > $1.date })
+            let sessionKey = String(activeSession.sessionKey)
+
+            let shouldRefreshLocation = refreshTick % 2 == 0
+            let shouldRefreshContextFeeds = refreshTick % 3 == 0
+            await refreshLiveTimingData(
+                sessionKey: sessionKey,
+                includeLocation: shouldRefreshLocation
+            )
+
+            if shouldRefreshContextFeeds {
+                let messages = try await openF1Client.fetchRaceControlFeed(limit: 25, sessionKey: sessionKey)
+                self.raceControlFeed = messages
+                self.latestRaceControlMessage = messages.first
+                if let first = messages.first {
+                    self.currentTrackStatus = mapTrackStatus(from: first)
+                }
+
+                let weatherData = try await openF1Client.fetchWeather(sessionKey: sessionKey)
+                self.weatherHistory = weatherData.sorted(by: { $0.date > $1.date })
+                self.latestWeather = weatherHistory.first
+
+                let pitStops = try await openF1Client.fetchPitStops(sessionKey: sessionKey)
+                self.recentPitStops = pitStops.sorted(by: { $0.date > $1.date })
+            }
+
+            let shouldRefreshExtendedFeeds = refreshTick % 4 == 0
+            if shouldRefreshExtendedFeeds {
+                await refreshExtendedLiveFeeds(sessionKey: sessionKey)
+            }
 
         } catch {
             print("[TelemetryViewModel] Failed to load OpenF1 data feeds: \(error.localizedDescription)")
@@ -132,7 +133,7 @@ public final class TelemetryViewModel {
 
     private func startRaceControlPolling() {
         raceControlTimer?.invalidate()
-        raceControlTimer = Timer.scheduledTimer(withTimeInterval: 15.0, repeats: true) { [weak self] _ in
+        raceControlTimer = Timer.scheduledTimer(withTimeInterval: 6.0, repeats: true) { [weak self] _ in
             Task { await self?.refreshRaceControlFeed() }
         }
     }
@@ -152,7 +153,285 @@ public final class TelemetryViewModel {
         return currentTrackStatus
     }
 
-    deinit {
-        raceControlTimer?.invalidate()
+    private func applyLatestLocationsToCarData(_ locations: [OpenF1Location]) {
+        guard !locations.isEmpty else { return }
+
+        var latestByDriver: [Int: OpenF1Location] = [:]
+        for location in locations.sorted(by: { $0.date > $1.date }) {
+            if latestByDriver[location.driverNumber] == nil {
+                latestByDriver[location.driverNumber] = location
+            }
+            if latestByDriver.count >= 20 {
+                break
+            }
+        }
+
+        for (driverNumber, location) in latestByDriver {
+            let existing = carDataByDriver[driverNumber]
+            carDataByDriver[driverNumber] = CarData(
+                id: existing?.id ?? UUID().uuidString,
+                driverNumber: driverNumber,
+                xCoordinate: location.x,
+                yCoordinate: location.y,
+                zCoordinate: location.z,
+                speed: existing?.speed ?? 0,
+                gear: existing?.gear ?? 0,
+                rpm: existing?.rpm ?? 0,
+                drsStatus: existing?.drsStatus ?? 0,
+                brake: existing?.brake ?? 0,
+                throttle: existing?.throttle ?? 0,
+                timestamp: location.date
+            )
+        }
     }
+
+    private func refreshLiveTimingData(sessionKey: String, includeLocation: Bool) async {
+        var loadedSomething = false
+
+        do {
+            let positions = try await openF1Client.fetchPositions(sessionKey: sessionKey)
+            applyLatestPositions(positions)
+            loadedSomething = loadedSomething || !positions.isEmpty
+        } catch {
+            print("[TelemetryViewModel] Failed to load positions: \(error.localizedDescription)")
+        }
+
+        do {
+            let laps = try await openF1Client.fetchLaps(sessionKey: sessionKey)
+            applyLapTiming(laps)
+            loadedSomething = loadedSomething || !laps.isEmpty
+        } catch {
+            print("[TelemetryViewModel] Failed to load laps: \(error.localizedDescription)")
+        }
+
+        do {
+            let carSamples = try await openF1Client.fetchCarData(sessionKey: sessionKey)
+            applyLatestCarSamples(carSamples)
+            loadedSomething = loadedSomething || !carSamples.isEmpty
+        } catch {
+            print("[TelemetryViewModel] Failed to load car data: \(error.localizedDescription)")
+        }
+
+        if includeLocation {
+            do {
+                let locations = try await openF1Client.fetchLocation(sessionKey: sessionKey)
+                applyLatestLocationsToCarData(locations)
+                loadedSomething = loadedSomething || !locations.isEmpty
+            } catch {
+                print("[TelemetryViewModel] Failed to load locations: \(error.localizedDescription)")
+            }
+        }
+
+        if !loadedSomething {
+            print("[TelemetryViewModel] No live timing payloads available for session \(sessionKey).")
+        }
+    }
+
+    private func applyLatestPositions(_ positions: [OpenF1Position]) {
+        guard !positions.isEmpty else { return }
+
+        var latestByDriver: [Int: OpenF1Position] = [:]
+        for position in positions.sorted(by: { $0.date > $1.date }) {
+            if latestByDriver[position.driverNumber] == nil {
+                latestByDriver[position.driverNumber] = position
+            }
+            if latestByDriver.count >= 20 {
+                break
+            }
+        }
+
+        for (_, latest) in latestByDriver {
+            let existing = timingDataByDriver[latest.driverNumber]
+            timingDataByDriver[latest.driverNumber] = TimingData(
+                id: existing?.id ?? "timing-\(latest.driverNumber)-\(latest.date.timeIntervalSince1970)",
+                driverNumber: latest.driverNumber,
+                position: latest.position,
+                bestLapTime: existing?.bestLapTime,
+                lastLapTime: existing?.lastLapTime,
+                sector1Time: existing?.sector1Time,
+                sector2Time: existing?.sector2Time,
+                sector3Time: existing?.sector3Time,
+                microSectors: existing?.microSectors ?? [],
+                intervalToLeader: existing?.intervalToLeader,
+                intervalToCarAhead: existing?.intervalToCarAhead,
+                inPitLane: existing?.inPitLane ?? false,
+                timestamp: latest.date
+            )
+        }
+    }
+
+    private func applyLapTiming(_ laps: [OpenF1Lap]) {
+        guard !laps.isEmpty else { return }
+
+        let grouped = Dictionary(grouping: laps, by: \.driverNumber)
+        for (driverNumber, driverLaps) in grouped {
+            let latestLap = driverLaps.max {
+                if $0.lapNumber != $1.lapNumber {
+                    return $0.lapNumber < $1.lapNumber
+                }
+                return ($0.dateStart ?? .distantPast) < ($1.dateStart ?? .distantPast)
+            }
+
+            let bestLap = driverLaps
+                .compactMap(\.lapDuration)
+                .min()
+
+            let existing = timingDataByDriver[driverNumber]
+            let latestTime = latestLap?.dateStart ?? existing?.timestamp ?? Date()
+            let sectors = [
+                latestLap?.segmentsSector1 ?? [],
+                latestLap?.segmentsSector2 ?? [],
+                latestLap?.segmentsSector3 ?? []
+            ].flatMap { $0 }
+
+            timingDataByDriver[driverNumber] = TimingData(
+                id: existing?.id ?? "timing-\(driverNumber)-\(latestTime.timeIntervalSince1970)",
+                driverNumber: driverNumber,
+                position: existing?.position ?? 0,
+                bestLapTime: bestLap ?? existing?.bestLapTime,
+                lastLapTime: latestLap?.lapDuration ?? existing?.lastLapTime,
+                sector1Time: latestLap?.durationSector1 ?? existing?.sector1Time,
+                sector2Time: latestLap?.durationSector2 ?? existing?.sector2Time,
+                sector3Time: latestLap?.durationSector3 ?? existing?.sector3Time,
+                microSectors: sectors.isEmpty ? (existing?.microSectors ?? []) : sectors,
+                intervalToLeader: existing?.intervalToLeader,
+                intervalToCarAhead: existing?.intervalToCarAhead,
+                inPitLane: latestLap?.isPitOutLap ?? existing?.inPitLane ?? false,
+                timestamp: latestTime
+            )
+        }
+
+        currentLap = laps.map(\.lapNumber).max()
+    }
+
+    private func applyLatestCarSamples(_ carSamples: [OpenF1CarData]) {
+        guard !carSamples.isEmpty else { return }
+
+        var latestByDriver: [Int: OpenF1CarData] = [:]
+        for sample in carSamples.sorted(by: { $0.date > $1.date }) {
+            if latestByDriver[sample.driverNumber] == nil {
+                latestByDriver[sample.driverNumber] = sample
+            }
+            if latestByDriver.count >= 20 {
+                break
+            }
+        }
+
+        for (_, sample) in latestByDriver {
+            let existing = carDataByDriver[sample.driverNumber]
+            carDataByDriver[sample.driverNumber] = CarData(
+                id: existing?.id ?? "car-\(sample.driverNumber)-\(sample.date.timeIntervalSince1970)",
+                driverNumber: sample.driverNumber,
+                xCoordinate: existing?.xCoordinate ?? 0.0,
+                yCoordinate: existing?.yCoordinate ?? 0.0,
+                zCoordinate: existing?.zCoordinate ?? 0.0,
+                speed: sample.speed,
+                gear: sample.gear,
+                rpm: sample.rpm,
+                drsStatus: sample.drs,
+                brake: Double(sample.brake),
+                throttle: Double(sample.throttle),
+                timestamp: sample.date
+            )
+        }
+    }
+
+    private func refreshExtendedLiveFeeds(sessionKey: String) async {
+        do {
+            let intervals = try await openF1Client.fetchIntervals(sessionKey: sessionKey)
+            applyLatestIntervals(intervals)
+        } catch {
+            print("[TelemetryViewModel] Failed to load intervals: \(error.localizedDescription)")
+        }
+
+        do {
+            let stints = try await openF1Client.fetchStints(sessionKey: sessionKey)
+            applyLatestStints(stints)
+        } catch {
+            print("[TelemetryViewModel] Failed to load stints: \(error.localizedDescription)")
+        }
+
+        do {
+            let overtakes = try await openF1Client.fetchOvertakes(sessionKey: sessionKey)
+            self.recentOvertakes = overtakes
+                .sorted(by: { $0.timestamp > $1.timestamp })
+        } catch {
+            print("[TelemetryViewModel] Failed to load overtakes: \(error.localizedDescription)")
+        }
+
+        do {
+            let radios = try await openF1Client.fetchTeamRadio(sessionKey: sessionKey)
+            self.recentTeamRadio = radios.sorted(by: { $0.date > $1.date })
+        } catch {
+            print("[TelemetryViewModel] Failed to load team radio feed: \(error.localizedDescription)")
+        }
+    }
+
+    private func applyLatestIntervals(_ intervals: [OpenF1Interval]) {
+        guard !intervals.isEmpty else { return }
+
+        var latestByDriver: [Int: OpenF1Interval] = [:]
+        for item in intervals.sorted(by: { $0.date > $1.date }) {
+            if latestByDriver[item.driverNumber] == nil {
+                latestByDriver[item.driverNumber] = item
+            }
+        }
+        latestIntervalsByDriver = latestByDriver
+
+        for (driverNumber, latest) in latestByDriver {
+            let existing = timingDataByDriver[driverNumber]
+            guard let existing else { continue }
+            timingDataByDriver[driverNumber] = TimingData(
+                id: existing.id,
+                driverNumber: driverNumber,
+                position: existing.position,
+                bestLapTime: existing.bestLapTime,
+                lastLapTime: existing.lastLapTime,
+                sector1Time: existing.sector1Time,
+                sector2Time: existing.sector2Time,
+                sector3Time: existing.sector3Time,
+                microSectors: existing.microSectors,
+                intervalToLeader: latest.gapToLeader,
+                intervalToCarAhead: latest.interval,
+                inPitLane: existing.inPitLane,
+                timestamp: max(existing.timestamp, latest.date)
+            )
+        }
+    }
+
+    private func applyLatestStints(_ stints: [OpenF1Stint]) {
+        guard !stints.isEmpty else { return }
+
+        var latestByDriver: [Int: OpenF1Stint] = [:]
+        for stint in stints {
+            if let existing = latestByDriver[stint.driverNumber] {
+                if stint.stintNumber > existing.stintNumber {
+                    latestByDriver[stint.driverNumber] = stint
+                } else if stint.stintNumber == existing.stintNumber, stint.lapEnd > existing.lapEnd {
+                    latestByDriver[stint.driverNumber] = stint
+                }
+            } else {
+                latestByDriver[stint.driverNumber] = stint
+            }
+        }
+        latestStintsByDriver = latestByDriver
+    }
+
+    private func clearLiveStateForNoSession() {
+        activeSession = nil
+        currentLap = nil
+        raceControlFeed = []
+        latestRaceControlMessage = nil
+        latestWeather = nil
+        weatherHistory = []
+        recentPitStops = []
+        recentOvertakes = []
+        recentTeamRadio = []
+        latestIntervalsByDriver = [:]
+        latestStintsByDriver = [:]
+        timingDataByDriver = [:]
+        carDataByDriver = [:]
+    }
+
+    deinit {}
 }

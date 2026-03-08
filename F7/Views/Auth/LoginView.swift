@@ -30,29 +30,28 @@ public struct LoginView: View {
             }
         )
         .ignoresSafeArea()
-        .preferredColorScheme(.dark)
-    }
+            }
     
     // MARK: - Landing Screen
     
     private var landingView: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
+            Color(.systemBackground).ignoresSafeArea()
             
             VStack(spacing: 32) {
                 Spacer()
                 
                 VStack(spacing: 12) {
                     Image(systemName: "flag.checkered")
-                        .font(.system(size: 48))
-                        .foregroundColor(.red)
+                        .font(.inter(size: 48))
+                        .foregroundColor(.appAccent)
                     
                     Text("ARGON F7")
-                        .font(.system(.largeTitle, design: .default, weight: .black))
-                        .foregroundColor(.white)
+                        .font(.inter(.largeTitle, design: .default, weight: .black))
+                        .foregroundColor(.primary)
                     
                     Text("Watch F1TV live races and replays")
-                        .font(.subheadline)
+                        .font(.inter(.subheadline))
                         .foregroundColor(.secondary)
                 }
                 
@@ -61,7 +60,7 @@ public struct LoginView: View {
                         Image(systemName: "exclamationmark.circle.fill")
                         Text(error)
                     }
-                    .font(.caption)
+                    .font(.inter(.caption))
                     .foregroundColor(.red)
                     .padding(.horizontal, 24)
                 }
@@ -69,9 +68,9 @@ public struct LoginView: View {
                 if authVM.isLoading {
                     VStack(spacing: 8) {
                         ProgressView()
-                            .tint(.red)
+                            .tint(.appAccent)
                         Text("Authenticating...")
-                            .font(.caption)
+                            .font(.inter(.caption))
                             .foregroundColor(.secondary)
                     }
                 }
@@ -80,10 +79,10 @@ public struct LoginView: View {
                     startWebLogin()
                 } label: {
                     Text("SIGN IN WITH F1TV")
-                        .font(.system(.headline, design: .default, weight: .bold))
+                        .font(.inter(.headline, design: .default, weight: .bold))
                         .frame(maxWidth: .infinity)
                         .frame(height: 50)
-                        .background(Color.red)
+                        .background(Color.appAccent)
                         .foregroundColor(.white)
                         .cornerRadius(12)
                 }
@@ -93,13 +92,12 @@ public struct LoginView: View {
                 Spacer()
                 
                 Text("Requires an active F1TV Pro subscription")
-                    .font(.caption2)
+                    .font(.inter(.caption2))
                     .foregroundColor(.secondary)
                     .padding(.bottom, 16)
             }
         }
-        .preferredColorScheme(.dark)
-    }
+            }
     
     // MARK: - Actions
     
@@ -152,11 +150,11 @@ final class F1LoginWebViewController: UIViewController {
     
     override func viewDidLoad() {
         super.viewDidLoad()
-        view.backgroundColor = .black
+        view.backgroundColor = .systemBackground
         
         // Header bar
         let headerBar = UIView()
-        headerBar.backgroundColor = UIColor(white: 0.06, alpha: 1)
+        headerBar.backgroundColor = .secondarySystemBackground
         headerBar.translatesAutoresizingMaskIntoConstraints = false
         
         let cancelButton = UIButton(type: .system)
@@ -168,7 +166,7 @@ final class F1LoginWebViewController: UIViewController {
         
         let titleLabel = UILabel()
         titleLabel.text = "Sign in to F1TV"
-        titleLabel.textColor = .white
+        titleLabel.textColor = .label
         titleLabel.font = .systemFont(ofSize: 15, weight: .semibold)
         titleLabel.textAlignment = .center
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -180,8 +178,8 @@ final class F1LoginWebViewController: UIViewController {
         webView.translatesAutoresizingMaskIntoConstraints = false
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.isOpaque = false
-        webView.backgroundColor = .black
-        webView.scrollView.backgroundColor = .black
+        webView.backgroundColor = .systemBackground
+        webView.scrollView.backgroundColor = .systemBackground
         
         view.addSubview(headerBar)
         view.addSubview(webView)

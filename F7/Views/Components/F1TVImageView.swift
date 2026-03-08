@@ -125,7 +125,7 @@ struct F1TVImageView: View {
         ZStack {
             Color(white: 0.12)
             Image(systemName: "play.rectangle.fill")
-                .font(.title2)
+                .font(.inter(.title2))
                 .foregroundColor(Color(white: 0.25))
         }
     }
